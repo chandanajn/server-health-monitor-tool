@@ -246,4 +246,3 @@ class CheckpointStore:
             reason,
             target.name,
         )
-

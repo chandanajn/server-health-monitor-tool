@@ -148,4 +148,3 @@ def test_invalid_severity_quarantined(tmp_path: Path) -> None:
     store = CheckpointStore(state_file)
     assert store.load() == {}
     assert len(list(tmp_path.glob("state.json.corrupt-*"))) == 1
-

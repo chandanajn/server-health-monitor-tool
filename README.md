@@ -31,3 +31,10 @@ Added strict schema validation on load to ensure file paths are safe relative pa
 
 Added unit tests to verify save and reload roundtrips, unchanged state write avoidance, corrupt file quarantine handling, schema version checks, and path traversal protection.
 
+### 5. Monitor Engine
+Built the core log monitoring engine that traverses the log directory tree and tracks active server faults. It scans files incrementally, seeking to saved byte offsets rather than reading full log files repeatedly.
+
+Added file rotation and truncation detection using inode and file size tracking. If a log file shrinks or changes inode, the offset resets to the beginning while retaining any existing active faults. Incomplete trailing lines without newlines are held back until the next scan cycle. If an error occurs on a single file, it is isolated and recorded without interrupting the scan for other servers.
+
+Added unit tests covering baseline metrics against sample logs (6 servers, 3 faulty at ERROR, 4 faulty at WARN), incremental appends, partial-line buffering, log rotations, vanished files, and the full fault resolution lifecycle.
+
