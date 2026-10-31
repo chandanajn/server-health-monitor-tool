@@ -60,4 +60,3 @@ def test_report_message_sanitization(tmp_path: Path) -> None:
         assert "\x00" not in fault["message"]
         assert "\x08" not in fault["message"]
         assert "Message with  control chars" in fault["message"]
-

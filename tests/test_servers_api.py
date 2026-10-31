@@ -99,4 +99,3 @@ def test_server_detail_endpoint(tmp_path: Path) -> None:
         # Unknown env
         resp_env_404 = client.get("/api/v1/servers/unknown_env/server-6")
         assert resp_env_404.status_code == 404
-

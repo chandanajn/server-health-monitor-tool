@@ -59,3 +59,12 @@ Added `/api/v1/report` to return total and faulty server counts along with affec
 
 Added untrusted text sanitization to strip non-printable control characters from log messages before returning them in API responses. Added unit tests for baseline report metrics, pagination boundaries, query parameter validation, and 404 responses for nonexistent servers.
 
+### 9. API Authentication and Fault Resolution
+Implemented authentication and write operations under `/api/v1`. Added API key verification using constant-time string comparison (`hmac.compare_digest`) via the `X-API-Key` header. If no API key is configured on the service, write routes return 403 `writes_disabled`. Missing or invalid keys return 401.
+
+Added `POST /api/v1/scan` to allow authorized clients to trigger an immediate scan cycle under the service lock.
+
+Added `POST /api/v1/servers/{env}/{server}/faults/{fault_id}/resolve` to resolve active faults. The endpoint appends an explicit `INFO RESOLVED` record directly to the server's own log file using an atomic binary append write with leading newline protection. After appending, an immediate rescan runs to clear the active fault and update the persisted checkpoint state. Attempting to resolve an already-cleared fault returns 409 `fault_not_active`, while unknown servers or faults return 404.
+
+Added unit tests covering authentication states, manual scans, fault resolution lifecycles, newline handling, double resolution prevention, and path validation safety.
+

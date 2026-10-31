@@ -78,4 +78,3 @@ class Page(BaseModel, Generic[T]):
     total: int
     limit: int
     offset: int
-

@@ -80,4 +80,3 @@ def get_report(
         faulty_servers=snapshot.faulty_servers,
         affected_servers=affected,
     )
-

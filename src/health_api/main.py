@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from health_api.api.admin import router as admin_router
 from health_api.api.faults import router as faults_router
 from health_api.api.health import router as health_router
 from health_api.api.report import router as report_router
@@ -75,4 +76,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(report_router, prefix="/api/v1")
     app.include_router(servers_router, prefix="/api/v1")
     app.include_router(faults_router, prefix="/api/v1")
+    app.include_router(admin_router, prefix="/api/v1")
     return app

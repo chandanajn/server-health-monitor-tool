@@ -104,4 +104,3 @@ def get_server_detail(
         error=matched.error,
         active_faults=fault_models,
     )
-

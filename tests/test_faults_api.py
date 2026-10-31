@@ -42,4 +42,3 @@ def test_faults_endpoint_listing_and_filters(tmp_path: Path) -> None:
         # Invalid min_severity
         invalid_resp = client.get("/api/v1/faults?min_severity=NOT_REAL")
         assert invalid_resp.status_code == 422
-
