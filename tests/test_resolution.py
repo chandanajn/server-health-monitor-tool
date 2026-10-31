@@ -75,4 +75,3 @@ def test_multiple_faults_selective_resolution(tmp_path: Path) -> None:
     assert report.faulty_servers == 1
     assert "F001" not in cp.active_faults
     assert "F002" in cp.active_faults
-

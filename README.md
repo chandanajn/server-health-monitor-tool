@@ -38,3 +38,10 @@ Added file rotation and truncation detection using inode and file size tracking.
 
 Added unit tests covering baseline metrics against sample logs (6 servers, 3 faulty at ERROR, 4 faulty at WARN), incremental appends, partial-line buffering, log rotations, vanished files, and the full fault resolution lifecycle.
 
+### 6. Settings and Logging
+Implemented environment-based configuration using Pydantic Settings with the HM_ prefix. Added validation rules ensuring the root log directory exists, the state file path is located outside the monitored root directory, the scan interval is at least 0.1 seconds, and the optional API key has a minimum length of 16 characters.
+
+Configured application logging supporting both human-readable text and structured single-line JSON formatting. Added context variable tracking so request identifiers can be propagated to all log records for end-to-end tracing.
+
+Added unit tests to verify default configuration values, environment variable overrides, .env file loading with environment precedence, validation failure cases, and structured JSON log formatting.
+
