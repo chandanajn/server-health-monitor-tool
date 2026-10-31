@@ -83,3 +83,42 @@ jobs:
           path: coverage.xml
           retention-days: 1
 
+  sonar:
+    name: 3. SonarCloud Quality Gate
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full git history for blame analysis)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Verify SonarCloud credentials
+        id: check-sonar
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
+            echo "Fork pull request detected. Secrets are unavailable on fork PRs; skipping SonarCloud analysis."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "::error ::SONAR_TOKEN secret is not configured in repository settings. SonarCloud quality gate is mandatory on non-fork runs."
+            exit 1
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run SonarCloud Scan & Enforce Quality Gate
+        if: steps.check-sonar.outputs.skip != 'true'
+        uses: sonarsource/sonarcloud-github-action@v3
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
+            ${{ vars.SONAR_PROJECT_KEY && format('-Dsonar.projectKey={0}', vars.SONAR_PROJECT_KEY) || '' }}
+            ${{ vars.SONAR_ORGANIZATION && format('-Dsonar.organization={0}', vars.SONAR_ORGANIZATION) || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

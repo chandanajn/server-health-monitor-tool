@@ -153,3 +153,9 @@ Created the initial GitHub Actions workflow in `.github/workflows/ci.yml` trigge
 - **Security & Concurrency**: Restricts permissions to read-only (`contents: read`) at the workflow root and uses concurrency cancellation for superseded pull request runs.
 - **Stage 1 (Lint)**: Sets up Python 3.11 with pip package caching, installs dependencies, and runs `ruff check .`, `ruff format --check .`, strict `mypy src tests scripts`, and `pip-audit -r requirements.txt`.
 - **Stage 2 (Test)**: Depends on the lint stage, executes the full pytest suite with branch coverage validation (`--cov-fail-under=80`), and uploads `coverage.xml` as an automated workflow artifact.
+
+### 15. SonarCloud Code Quality Gate Integration
+Integrated automated SonarCloud analysis and Quality Gate verification:
+- **Scanner Configuration (`sonar-project.properties`)**: Configured code source root (`src`), test suite location (`tests`), UTF-8 encoding, Python 3.11 version target, and coverage report path (`coverage.xml`). Explicitly excluded sample server logs (`org/**`) and build verification scripts (`scripts/**`) with documented justifications.
+- **CI Workflow Stage (`sonar`)**: Added the third stage to `.github/workflows/ci.yml`, running `sonarsource/sonarcloud-github-action@v3` with `-Dsonar.qualitygate.wait=true` to enforce passing Quality Gates before downstream packaging.
+- **Non-Fork Gate Enforcement**: Verified that `SONAR_TOKEN` is mandatory on repository runs to prevent silent quality check bypasses, while allowing fork pull requests without repository secrets to pass.
