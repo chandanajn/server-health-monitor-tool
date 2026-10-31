@@ -76,3 +76,10 @@ Implemented HTTP middleware to accept or generate `X-Request-ID` headers, bind t
 Added Prometheus metrics collection and a `/metrics` export endpoint supporting gauges for total and faulty servers, scan cycle duration histograms, and counters for scan failures and resolved faults. Metrics export can be toggled via `HM_ENABLE_METRICS`, returning 404 with standard error format when disabled.
 
 Added unit tests covering error response envelopes across all status codes, request ID reuse, unhandled exception masking, Prometheus metrics values, and disabled metrics handling.
+
+### 11. Test Hardening and Edge Case Coverage
+Added end-to-end integration tests to verify the complete operational cycle: incremental log append detection, fault reflection in report and server detail endpoints, fault resolution via manual log file editing, live file rotation and truncation handling, and state preservation across service restarts.
+
+Extended test coverage across edge cases, including Windows CRLF line endings, UTF-8 byte-order marks (BOM), invalid byte sequences, high-volume directory trees with 500 server log files, empty directory monitoring, directory deletion during runtime while retaining unresolved faults, and corrupt checkpoint quarantine recovery at startup.
+
+Configured automated test coverage measurement producing detailed terminal output and `coverage.xml` reports, achieving 90.47% test coverage across the application codebase against the 80% coverage requirement.

@@ -33,7 +33,7 @@ def _error(reason: str, text: str) -> ParseError:
 
 def parse_line(line: str) -> LogEvent | ParseError | None:
     """Parse a single line. Never raises exceptions on malformed text."""
-    text = line.strip()
+    text = line.lstrip("\ufeff").strip()
     if not text:
         return None
     if len(text) > MAX_LINE_LENGTH:
