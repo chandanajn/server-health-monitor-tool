@@ -122,3 +122,143 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  build:
+    name: 4. Build Container Image
+    needs: sonar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag "health-api:${{ github.sha }}" \
+            --build-arg VCS_REF="${{ github.sha }}" \
+            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --build-arg VERSION="0.1.0" \
+            .
+
+      - name: Save Docker image archive
+        run: docker save "health-api:${{ github.sha }}" -o image.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar
+          retention-days: 1
+
+  smoke:
+    name: 5. Container Smoke Test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Load Docker image into daemon
+        run: docker load -i image.tar
+
+      - name: Run container smoke tests
+        run: python scripts/smoke_test.py "health-api:${{ github.sha }}"
+
+  publish:
+    name: 6. Publish Container Image to GHCR
+    needs: smoke
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Load Docker image into daemon
+        run: docker load -i image.tar
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify immutable SHA tag and publish image
+        run: |
+          # Lowercase image repository reference for GHCR
+          IMAGE_NAME="ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          SHA_TAG="${{ github.sha }}"
+
+          echo "Target image repository: ${IMAGE_NAME}"
+
+          # Enforce immutable SHA tag check
+          if docker manifest inspect "${IMAGE_NAME}:${SHA_TAG}" > /dev/null 2>&1; then
+            echo "::error::Tag ${IMAGE_NAME}:${SHA_TAG} already exists in registry. Refusing to overwrite immutable SHA tag."
+            exit 1
+          fi
+
+          # Tag the loaded image with the immutable SHA
+          docker tag "health-api:${SHA_TAG}" "${IMAGE_NAME}:${SHA_TAG}"
+          TAGS=("${IMAGE_NAME}:${SHA_TAG}")
+
+          # Determine additional distribution tags based on git reference
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            docker tag "health-api:${SHA_TAG}" "${IMAGE_NAME}:main"
+            docker tag "health-api:${SHA_TAG}" "${IMAGE_NAME}:latest"
+            TAGS+=("${IMAGE_NAME}:main" "${IMAGE_NAME}:latest")
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            RELEASE_VERSION="${GITHUB_REF_NAME#v}"
+            docker tag "health-api:${SHA_TAG}" "${IMAGE_NAME}:${RELEASE_VERSION}"
+            docker tag "health-api:${SHA_TAG}" "${IMAGE_NAME}:latest"
+            TAGS+=("${IMAGE_NAME}:${RELEASE_VERSION}" "${IMAGE_NAME}:latest")
+          fi
+
+          # Push all assigned tags
+          for tag in "${TAGS[@]}"; do
+            echo "Pushing ${tag}..."
+            docker push "${tag}"
+          done
+
+          # Capture image digest for provenance tracking
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE_NAME}:${SHA_TAG}" 2>/dev/null || echo "${IMAGE_NAME}:${SHA_TAG}")
+
+          # Write traceability details to GitHub Step Summary
+          echo "## Container Publication Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Repository**: \`${IMAGE_NAME}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Primary Digest**: \`${DIGEST}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pushed Tags**:" >> $GITHUB_STEP_SUMMARY
+          for tag in "${TAGS[@]}"; do
+            echo "  - \`${tag}\`" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Optional Artifactory publication
+        run: |
+          if [ -n "${{ secrets.ARTIFACTORY_TOKEN }}" ] && [ -n "${{ vars.ARTIFACTORY_HOST }}" ]; then
+            echo "Publishing to JFrog Artifactory..."
+            echo "${{ secrets.ARTIFACTORY_TOKEN }}" | docker login "${{ vars.ARTIFACTORY_HOST }}" -u "${{ secrets.ARTIFACTORY_USER }}" --password-stdin
+            docker tag "health-api:${{ github.sha }}" "${{ vars.ARTIFACTORY_HOST }}/server-health-monitor-api:${{ github.sha }}"
+            docker push "${{ vars.ARTIFACTORY_HOST }}/server-health-monitor-api:${{ github.sha }}"
+          else
+            echo "Artifactory credentials not configured; skipping optional registry push."
+          fi

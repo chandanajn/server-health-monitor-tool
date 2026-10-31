@@ -1,9 +1,297 @@
 # Server Health Monitor API
 
-A FastAPI-based application to monitor server log files across different environments, identify active faults, and provide server health information through REST APIs.
+[![CI/CD Pipeline](https://github.com/chandanajn/server-health-monitor-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/chandanajn/server-health-monitor-tool/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=chandanajn_server-health-monitor-tool&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=chandanajn_server-health-monitor-tool)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=chandanajn_server-health-monitor-tool&metric=coverage)](https://sonarcloud.io/summary/new_code?id=chandanajn_server-health-monitor-tool)
 
+A production-grade FastAPI application that continuously monitors server log files across enterprise environments (e.g. dev, staging, prod), tracks active faults using incremental byte offsets, persists checkpoints atomically, and provides health reports and operational resolution through REST APIs.
 
-## Development 
+```mermaid
+flowchart LR
+    subgraph Storage ["Log Storage"]
+        Logs["Server Logs (/data/org)"]
+    end
+
+    subgraph Service ["Monitoring Service Core"]
+        Engine["Monitor Engine (Seek to Offset)"]
+        State["Atomic Checkpoint Store (state.json)"]
+        Cache["In-Memory Snapshot"]
+        API["FastAPI HTTP Router"]
+    end
+
+    subgraph Clients ["Clients & Observability"]
+        Operator["DevOps / Operations"]
+        Metrics["Prometheus Scraper"]
+    end
+
+    Logs -->|Incremental Byte Seek| Engine
+    Engine -->|Atomic State Persist| State
+    Engine -->|Synchronized Snapshot Update| Cache
+    Operator -->|GET /api/v1/report| API
+    Operator -->|POST /api/v1/resolve| API
+    Metrics -->|GET /metrics| API
+    API -->|Serve Instantly (Lockless)| Cache
+    API -->|Append RESOLVED Line| Logs
+```
+
+---
+
+## Prerequisites
+
+- **Python**: Version 3.11 or higher
+- **Git**: For version control
+- **Docker**: Engine 24.0+ / Docker Desktop for containerized deployment
+- **SonarCloud**: Account for CI quality gate analysis (optional for local runs)
+
+---
+
+## Setup and Local Run
+
+### 1. Environment Setup
+
+Clone the repository and set up a virtual environment:
+
+```powershell
+# Windows PowerShell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt -r requirements-dev.txt
+pip install -e . --no-deps
+```
+
+### 2. Configuration (`.env`)
+
+Copy the example configuration:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Default configuration variables:
+
+```ini
+HM_ROOT=org
+HM_STATE_FILE=state/state.json
+HM_SCAN_INTERVAL_SEC=10.0
+HM_MIN_SEVERITY=ERROR
+HM_HOST=0.0.0.0
+HM_PORT=8000
+HM_LOG_LEVEL=INFO
+HM_LOG_FORMAT=text
+HM_API_KEY=dev-secret-key-12345
+HM_ENABLE_METRICS=true
+```
+
+### 3. Run Application
+
+```powershell
+python -m health_api
+```
+
+The service initializes, runs an initial scan across `org/`, and starts serving at `http://127.0.0.1:8000`.
+
+---
+
+## Log Format and Fault Resolution
+
+### Log Format
+
+The monitor engine parses server log files with the format:
+
+```text
+YYYY-MM-DDTHH:MM:SS SEVERITY [id=FAULT_ID] Log message text
+```
+
+Examples:
+- `2026-10-08T09:02:00 ERROR [id=F001] Database unavailable`
+- `2026-10-08T09:05:00 WARN High memory usage`
+- `2026-10-08T09:06:00 CRIT [id=F002] Disk failure`
+
+### Resolving a Fault
+
+An active fault can be resolved in two ways:
+
+1. **Manual File Edit**: Append an `INFO RESOLVED` record directly to the server log file:
+   ```text
+   2026-10-08T09:15:00 INFO RESOLVED [id=F001] Database restored
+   ```
+2. **API Resolution**: Send an authenticated `POST` request to the resolve endpoint:
+   ```powershell
+   Invoke-RestMethod -Method POST `
+     -Uri "http://127.0.0.1:8000/api/v1/servers/dev/server-2.log/faults/F001/resolve" `
+     -Headers @{"X-API-Key" = "dev-secret-key-12345"}
+   ```
+   The API atomically appends the resolution line directly to the server's log file and triggers an immediate rescan.
+
+---
+
+## Configuration Reference
+
+| Environment Variable | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `HM_ROOT` | string | `org` | Root directory containing monitored server logs |
+| `HM_STATE_FILE` | string | `state/state.json` | Path to persistent checkpoint state JSON file |
+| `HM_SCAN_INTERVAL_SEC` | float | `10.0` | Background rescan polling interval (seconds, min: 0.1) |
+| `HM_MIN_SEVERITY` | string | `ERROR` | Minimum severity threshold (`WARN`, `ERROR`, `CRIT`) |
+| `HM_HOST` | string | `0.0.0.0` | HTTP listener bind host |
+| `HM_PORT` | int | `8000` | HTTP listener bind port (1-65535) |
+| `HM_LOG_LEVEL` | string | `INFO` | Application logging level (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
+| `HM_LOG_FORMAT` | string | `text` | Logging output format (`text` or `json`) |
+| `HM_API_KEY` | string | `None` | Optional API key for write routes (min 16 characters) |
+| `HM_ENABLE_METRICS` | bool | `true` | Expose Prometheus metrics at `/metrics` |
+
+---
+
+## API Reference
+
+All error responses use the standard JSON envelope: `{"error": {"code": "...", "message": "...", "request_id": "..."}}`.
+
+| Method | Endpoint | Auth | Description | Example (PowerShell) |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/healthz` | None | Process liveness probe | `Invoke-RestMethod http://127.0.0.1:8000/healthz` |
+| `GET` | `/readyz` | None | Service readiness probe | `Invoke-RestMethod http://127.0.0.1:8000/readyz` |
+| `GET` | `/api/v1/report` | None | Health summary & affected servers | `Invoke-RestMethod http://127.0.0.1:8000/api/v1/report` |
+| `GET` | `/api/v1/servers` | None | Paginated server list (`?env=&status=&limit=&offset=`) | `Invoke-RestMethod "http://127.0.0.1:8000/api/v1/servers?limit=10"` |
+| `GET` | `/api/v1/servers/{env}/{server}` | None | Detailed server health & active faults | `Invoke-RestMethod http://127.0.0.1:8000/api/v1/servers/dev/server-2.log` |
+| `GET` | `/api/v1/faults` | None | Flat list of active faults (`?severity=&env=`) | `Invoke-RestMethod "http://127.0.0.1:8000/api/v1/faults?severity=CRIT"` |
+| `POST` | `/api/v1/scan` | Required | Trigger immediate manual scan cycle | `Invoke-RestMethod -Method POST http://127.0.0.1:8000/api/v1/scan -Headers @{"X-API-Key"="dev-secret-key-12345"}` |
+| `POST` | `/api/v1/servers/{env}/{server}/faults/{id}/resolve` | Required | Append resolution line & clear fault | `Invoke-RestMethod -Method POST http://127.0.0.1:8000/api/v1/servers/dev/server-2.log/faults/F001/resolve -Headers @{"X-API-Key"="dev-secret-key-12345"}` |
+| `GET` | `/metrics` | None | Prometheus scrape metrics endpoint | `Invoke-RestMethod http://127.0.0.1:8000/metrics` |
+
+---
+
+## Running Tests and Code Quality
+
+```powershell
+# Run Ruff linting
+ruff check .
+
+# Check formatting
+ruff format --check .
+
+# Strict type checking
+mypy src tests scripts
+
+# Run full pytest suite with branch coverage validation
+pytest --cov=health_api --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+# Audit dependencies for known vulnerabilities
+pip-audit -r requirements.txt
+```
+
+---
+
+## Running in Docker
+
+The application includes a hardened multi-stage `Dockerfile` based on `python:3.11-slim-bookworm`:
+- Non-root execution as fixed UID/GID 10001 (`appuser`)
+- Pre-configured directories: `/data/org` (monitored logs) and `/data/state` (checkpoints)
+- Internal `HEALTHCHECK` probe using standard library `urllib`
+
+### Build Image
+
+```powershell
+docker build -t health-api:local .
+```
+
+### Run Container Smoke Test
+
+Verify all 6 operational scenarios against the built image:
+
+```powershell
+python scripts/smoke_test.py health-api:local
+```
+
+### Run Service with Volumes
+
+```powershell
+# For read-only log monitoring:
+docker run --rm -p 8000:8000 `
+  -v "${PWD}\org:/data/org:ro" `
+  -v "${PWD}\state:/data/state:rw" `
+  -e HM_API_KEY="production-secret-key-12345" `
+  health-api:local
+
+# For API-driven fault resolution (requires writable log mount):
+docker run --rm -p 8000:8000 `
+  -v "${PWD}\org:/data/org:rw" `
+  -v "${PWD}\state:/data/state:rw" `
+  -e HM_API_KEY="production-secret-key-12345" `
+  health-api:local
+```
+
+---
+
+## CI/CD Pipeline Architecture
+
+The automated pipeline is defined in `.github/workflows/ci.yml` and consists of 6 sequential stages:
+
+```mermaid
+flowchart LR
+    S1["1. Lint & Audit"] --> S2["2. Unit Tests (>=80% Cov)"]
+    S2 --> S3["3. SonarCloud Quality Gate"]
+    S3 --> S4["4. Build Container Image"]
+    S4 --> S5["5. Container Smoke Test"]
+    S5 --> S6["6. Publish to GHCR"]
+```
+
+1. **Stage 1 (Lint)**: Ruff linter, Ruff format verification, strict MyPy type checking, and pip-audit vulnerability checks.
+2. **Stage 2 (Test)**: Full pytest suite with strict branch coverage enforcement (`--cov-fail-under=80`) and `coverage.xml` export.
+3. **Stage 3 (Sonar)**: SonarCloud quality gate enforcement (`-Dsonar.qualitygate.wait=true`). Enforces zero code smells and branch coverage standards on repository runs.
+4. **Stage 4 (Build)**: Docker Buildx builds the production container with OCI metadata (`VCS_REF`, `BUILD_DATE`, `VERSION`) and exports `image.tar`.
+5. **Stage 5 (Smoke)**: Loads `image.tar` and executes `scripts/smoke_test.py` verifying all 6 end-to-end operational scenarios against the container.
+6. **Stage 6 (Publish)**: Gated exclusively to `main` branch pushes and `v*` release tags. Checks cryptographic tag immutability via `docker manifest inspect` and pushes to `ghcr.io`.
+
+### Pulling the Published Image
+
+```powershell
+docker pull ghcr.io/chandanajn/server-health-monitor-tool:latest
+docker run --rm -p 8000:8000 -v "${PWD}\org:/data/org:ro" ghcr.io/chandanajn/server-health-monitor-tool:latest
+```
+
+---
+
+## Design Decisions
+
+1. **Snapshot Reads**: All read API requests are served from an in-memory snapshot cache protected by reader locks. Requests never block on disk I/O.
+2. **Atomic State Checkpoints**: Checkpoints write to a unique temporary file (`state.json.tmp.<uuid>`), flush to disk (`fsync`), and atomically replace `state.json` to prevent partial or corrupted writes.
+3. **Incremental Byte Offsets**: File offsets and inode tracking allow the scanner to seek directly to unread bytes without re-parsing entire log files.
+4. **Log Rotation & Truncation**: Detected via inode changes and size decreases, automatically resetting read offsets while preserving active fault states.
+5. **Single Worker Uvicorn**: Uvicorn runs with a single worker process because the checkpoint store is designed for a single writer.
+
+---
+
+## Operational Assumptions
+
+1. **Log Timestamps**: Assumed to be ISO-8601 strings (e.g. `YYYY-MM-DDTHH:MM:SS`).
+2. **Line Delimiters**: Monitored log files use standard newline delimiters (`\n` or `\r\n`). Trailing partial lines without newlines are buffered until the next scan cycle.
+3. **Unique Fault IDs**: Fault IDs (`[id=FAULT_ID]`) are unique per monitored server file.
+4. **Single Writer**: Exactly one monitoring service instance writes to a given `state.json` file.
+
+---
+
+## Known Limitations and Accepted Risks
+
+1. **Polling Delay**: File changes are detected on the next background scan interval (`HM_SCAN_INTERVAL_SEC`), not via instant kernel filesystem notifications (`inotify`).
+2. **API Fault Resolution**: Requires the underlying log volume mount to be writable (`:rw`). If mounted read-only (`:ro`), resolution attempts return a unified 503 error (`log_not_writable`).
+3. **Single API Key**: Authentication uses a single shared secret key without role-based access control (RBAC).
+
+---
+
+## Troubleshooting
+
+| Problem | Root Cause | Solution |
+| :--- | :--- | :--- |
+| **Permission denied on state file** | Container UID 10001 cannot write to host mount directory | Grant write permissions to UID 10001 (`chmod 777 state` on host or `chown -R 10001:10001 state`). |
+| **`/readyz` returns 503** | Initial scan has not finished or scans are failing | Verify `HM_ROOT` exists and contains readable log files. Check `/healthz` for process liveness. |
+| **Fault resolution returns 503** | Log file is mounted read-only in Docker | Ensure log directory mount specifies read-write permissions (`-v /path/to/org:/data/org:rw`). |
+| **SonarCloud 0% coverage** | Coverage report missing or path mismatch | Confirm `coverage.xml` is generated during pytest and referenced in `sonar-project.properties`. |
+| **Quarantined checkpoint** | Corrupted state JSON detected on startup | The service safely moves corrupted files to `state.json.corrupt.<timestamp>` and starts with a clean state. |
+
+---
+
+## Development
 
 ### 1. Repository Setup
 Created the Git repository and set up the initial project configuration. Added `.gitignore` to exclude virtual environments, Python cache files, and local state files. Also configured Git to handle line endings consistently.
@@ -105,7 +393,7 @@ The primary development commands used across the project:
   ```
 - **Type checking (strict)**:
   ```powershell
-  mypy src tests
+  mypy src tests scripts
   ```
 - **Test execution with coverage**:
   ```powershell
@@ -121,9 +409,9 @@ The primary development commands used across the project:
   ```
 
 ### 13. Containerization and Automated Smoke Testing
-Created a production-ready, multi-stage `Dockerfile` using `python:3.11-slim`:
-- **Builder stage**: Compiles dependencies into an isolated virtual environment (`/opt/venv`).
-- **Runtime stage**: Runs exclusively as a dedicated non-root user (`appuser`, fixed UID/GID 10001), declares mount targets `/data/org` (monitored logs) and `/data/state` (checkpoint state), and configures container health checks using standard library `urllib`.
+Created a production-ready, multi-stage `Dockerfile` using `python:3.11-slim-bookworm` with security hardening:
+- **Builder stage**: Upgrades packaging tools (`pip`, `setuptools`, `wheel`) and compiles dependencies into an isolated virtual environment (`/opt/venv`).
+- **Runtime stage**: Applies latest Debian security patches (`apt-get upgrade`), runs exclusively as a dedicated non-root user (`appuser`, fixed UID/GID 10001), declares mount targets `/data/org` (monitored logs) and `/data/state` (checkpoint state), and configures container health checks using standard library `urllib`.
 - **Packaging safety**: Configured `.dockerignore` to prevent staging repository history, development tools, test files, and local state into the image.
 
 Implemented a dependency-free container verification script in `scripts/smoke_test.py` covering six core scenarios:
@@ -159,3 +447,25 @@ Integrated automated SonarCloud analysis and Quality Gate verification:
 - **Scanner Configuration (`sonar-project.properties`)**: Configured code source root (`src`), test suite location (`tests`), UTF-8 encoding, Python 3.11 version target, and coverage report path (`coverage.xml`). Explicitly excluded sample server logs (`org/**`) and build verification scripts (`scripts/**`) with documented justifications.
 - **CI Workflow Stage (`sonar`)**: Added the third stage to `.github/workflows/ci.yml`, running `sonarsource/sonarcloud-github-action@v3` with `-Dsonar.qualitygate.wait=true` to enforce passing Quality Gates before downstream packaging.
 - **Non-Fork Gate Enforcement**: Verified that `SONAR_TOKEN` is mandatory on repository runs to prevent silent quality check bypasses, while allowing fork pull requests without repository secrets to pass.
+
+### 16. Container Build and Automated Smoke Testing in CI
+Extended `.github/workflows/ci.yml` with stages 4 and 5:
+- **Stage 4 (Build)**: Uses Docker Buildx to build the production image tagged with the commit SHA (`health-api:${{ github.sha }}`), packaging OCI metadata (`VCS_REF`, `BUILD_DATE`, `VERSION`). Exports the built image to `image.tar` and preserves it as an artifact.
+- **Stage 5 (Smoke)**: Downloads the image artifact, loads it into Docker (`docker load -i image.tar`), and executes `scripts/smoke_test.py` verifying all 6 operational scenarios against the live container.
+
+### 17. Container Image Publishing to GitHub Container Registry
+Implemented Stage 6 (`publish`) in `.github/workflows/ci.yml` for production image distribution:
+- **Conditional Triggering**: Executes exclusively on `push` events to the `main` branch or release tags matching `v*`. Pull request builds automatically skip publishing to prevent unauthorized or untrusted image distribution.
+- **Granular Permissions**: Restricts job permissions to `contents: read` and `packages: write` using the built-in `GITHUB_TOKEN`.
+- **Immutable Tag Enforcement**: Inspects `ghcr.io/<repository>:<sha>` with `docker manifest inspect` before tagging and pushing. Fails the build immediately if the SHA tag already exists, ensuring cryptographic immutability.
+- **Multi-Tag Strategy**:
+  - Pushes on `main`: tags with `<sha>`, `main`, and `latest`.
+  - Pushes on semantic release tags (`vX.Y.Z`): tags with `<sha>`, `X.Y.Z`, and `latest`.
+- **Traceability & Provenance**: Captures image digest and records all pushed registry tags to `$GITHUB_STEP_SUMMARY` for audit visibility.
+- **Optional Enterprise Registry**: Supports JFrog Artifactory replication if optional repository secrets (`ARTIFACTORY_USER`, `ARTIFACTORY_TOKEN`, `ARTIFACTORY_HOST`) are configured.
+
+To pull and run the published container image:
+```powershell
+docker pull ghcr.io/<username>/server-health-monitor-api:latest
+docker run --rm -p 8000:8000 -v "${PWD}\org:/data/org:ro" ghcr.io/<username>/server-health-monitor-api:latest
+```
