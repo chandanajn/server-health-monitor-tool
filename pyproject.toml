@@ -32,6 +32,9 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra"
+filterwarnings = [
+    "ignore::starlette.exceptions.StarletteDeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["health_api"]
