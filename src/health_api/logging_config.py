@@ -54,4 +54,3 @@ def configure_logging(level: str = "INFO", fmt: str = "text") -> None:
         handler.setFormatter(logging.Formatter(text_fmt, datefmt="%Y-%m-%d %H:%M:%S"))
 
     root.addHandler(handler)
-

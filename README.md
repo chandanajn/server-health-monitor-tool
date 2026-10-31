@@ -45,3 +45,10 @@ Configured application logging supporting both human-readable text and structure
 
 Added unit tests to verify default configuration values, environment variable overrides, .env file loading with environment precedence, validation failure cases, and structured JSON log formatting.
 
+### 7. Application Factory and Health Endpoints
+Created the FastAPI application factory using an asynchronous lifespan context manager. On startup, the service runs an initial scan and starts a background monitoring task that periodically rescans the log tree. On shutdown, it stops the background task cleanly and saves state to disk.
+
+Built the service coordinator layer with thread-safe locking to keep scan cycles and file persistence synchronized. Added an in-memory snapshot cache so read queries can be answered instantly without accessing the disk.
+
+Implemented health check probe endpoints: `/healthz` for process liveness and `/readyz` for readiness, verifying that the initial scan has completed and that the most recent scan is not stale. Added unit tests for health endpoints, lifespan startup/shutdown, and stale state detection.
+

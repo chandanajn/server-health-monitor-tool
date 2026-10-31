@@ -64,6 +64,9 @@ ignore = ["E501"]
 "tests/**" = ["S101", "RUF001"]
 "scripts/**" = ["S603", "S607"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Path"]
+
 [tool.ruff.format]
 quote-style = "double"
 
