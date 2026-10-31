@@ -93,4 +93,3 @@ class MonitorService:
                 await asyncio.to_thread(self.scan)
             except Exception:
                 logger.warning("background scan iteration failed; continuing loop")
-

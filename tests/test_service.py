@@ -81,4 +81,3 @@ def test_service_run_loop_stop(tmp_path: Path) -> None:
         assert service.snapshot is not None
 
     asyncio.run(_test())
-

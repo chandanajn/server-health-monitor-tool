@@ -27,4 +27,3 @@ def readyz(
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "not_ready", "reason": reason}
     return {"status": "ready"}
-

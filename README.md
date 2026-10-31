@@ -52,3 +52,10 @@ Built the service coordinator layer with thread-safe locking to keep scan cycles
 
 Implemented health check probe endpoints: `/healthz` for process liveness and `/readyz` for readiness, verifying that the initial scan has completed and that the most recent scan is not stale. Added unit tests for health endpoints, lifespan startup/shutdown, and stale state detection.
 
+### 8. Read REST API Endpoints
+Defined Pydantic schemas and implemented read endpoints under `/api/v1` for operational reporting, server queries, and active faults. All read operations serve directly from the in-memory snapshot without touching disk files.
+
+Added `/api/v1/report` to return total and faulty server counts along with affected servers ordered by highest severity. Added `/api/v1/servers` with pagination (`limit` and `offset`) and filtering by environment and operational status (`healthy` or `faulty`). Added `/api/v1/servers/{env}/{server}` to return individual server details and active faults, validating paths against discovered servers to prevent path traversal. Added `/api/v1/faults` providing a flat list of active faults with optional severity and environment filtering.
+
+Added untrusted text sanitization to strip non-printable control characters from log messages before returning them in API responses. Added unit tests for baseline report metrics, pagination boundaries, query parameter validation, and 404 responses for nonexistent servers.
+

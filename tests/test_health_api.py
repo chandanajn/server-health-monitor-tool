@@ -65,4 +65,3 @@ def test_docs_disabled(tmp_path: Path) -> None:
     with TestClient(app) as client:
         resp = client.get("/docs")
         assert resp.status_code == 404
-

@@ -18,4 +18,3 @@ def get_app_settings(request: Request) -> Settings:
     """Extract application Settings instance from app state."""
     settings: Settings = request.app.state.settings
     return settings
-
