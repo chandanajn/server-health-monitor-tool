@@ -1,0 +1,6 @@
+2026-10-08 09:00:00 INFO Service started
+2026-10-08 09:01:00 WARN High memory usage
+invalid log line without timestamp or severity
+corrupted buffer data 0x89504e47
+2026-10-08 09:05:00 INFO Health check ok
+
