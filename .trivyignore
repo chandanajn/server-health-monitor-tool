@@ -1,0 +1,15 @@
+# .trivyignore
+# Security vulnerability suppression policy for Server Health Monitor API.
+#
+# Rules for entries:
+# Every entry must include:
+#   1. Valid CVE Identifier (e.g. CVE-YYYY-NNNNN)
+#   2. Detailed technical justification / reason why the vulnerability is not exploitable in this runtime
+#   3. Responsible engineer / owner
+#   4. Explicit review / expiration date
+#
+# Format:
+# CVE-YYYY-NNNNN # Reason: <reason> | Owner: <owner> | Review: <YYYY-MM-DD>
+#
+# Currently zero CVE exceptions are approved; any fixable HIGH or CRITICAL vulnerability fails the build.
+

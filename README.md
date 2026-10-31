@@ -159,3 +159,9 @@ Integrated automated SonarCloud analysis and Quality Gate verification:
 - **Scanner Configuration (`sonar-project.properties`)**: Configured code source root (`src`), test suite location (`tests`), UTF-8 encoding, Python 3.11 version target, and coverage report path (`coverage.xml`). Explicitly excluded sample server logs (`org/**`) and build verification scripts (`scripts/**`) with documented justifications.
 - **CI Workflow Stage (`sonar`)**: Added the third stage to `.github/workflows/ci.yml`, running `sonarsource/sonarcloud-github-action@v3` with `-Dsonar.qualitygate.wait=true` to enforce passing Quality Gates before downstream packaging.
 - **Non-Fork Gate Enforcement**: Verified that `SONAR_TOKEN` is mandatory on repository runs to prevent silent quality check bypasses, while allowing fork pull requests without repository secrets to pass.
+
+### 16. Container Build, Smoke Testing, and Security Scanning in CI
+Extended `.github/workflows/ci.yml` with stages 4, 5, and 6:
+- **Stage 4 (Build)**: Uses Docker Buildx to build the production image tagged with the commit SHA (`health-api:${{ github.sha }}`), packaging OCI metadata (`VCS_REF`, `BUILD_DATE`, `VERSION`). Exports the built image to `image.tar` and preserves it as an artifact.
+- **Stage 5 (Smoke)**: Downloads the image artifact, loads it into Docker (`docker load -i image.tar`), and executes `scripts/smoke_test.py` verifying all 6 operational scenarios against the live container.
+- **Stage 6 (Scan)**: Executes Aqua Security Trivy (`aquasecurity/trivy-action@0.29.0`) to scan the container for `CRITICAL` and `HIGH` security vulnerabilities across OS packages and application dependencies. Enforces the zero-CVE exception policy defined in `.trivyignore` and uploads `trivy-report.txt`.
