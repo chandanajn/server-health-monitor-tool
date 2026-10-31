@@ -89,9 +89,17 @@ def main() -> int:
     shutil.copytree(source_org, temp_org)
     temp_state.mkdir(parents=True, exist_ok=True)
 
-    # Make state directory world-writable so UID 10001 inside container can write checkpoints
+    # Make all directories and log files writable so the unprivileged container
+    # user (UID 10001) can append fault resolutions to logs and write checkpoints
     with contextlib.suppress(Exception):
-        os.chmod(temp_state, 0o777)
+        os.chmod(temp_root, 0o777)
+    for root_dir, dirs, files in os.walk(temp_root):
+        for d in dirs:
+            with contextlib.suppress(Exception):
+                os.chmod(os.path.join(root_dir, d), 0o777)
+        for f in files:
+            with contextlib.suppress(Exception):
+                os.chmod(os.path.join(root_dir, f), 0o666)
 
     container_main = f"smoke_test_main_{int(time.time())}"
     container_restart = f"smoke_test_restart_{int(time.time())}"
