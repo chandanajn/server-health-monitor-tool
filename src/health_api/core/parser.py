@@ -90,4 +90,3 @@ def _parse_resolution(
         fault_id=match["id"],
         is_resolution=True,
     )
-

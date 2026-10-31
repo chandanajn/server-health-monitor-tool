@@ -1,33 +1,47 @@
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
 
-# environments
+# Virtual environments
 .venv/
 venv/
-.env
+env/
+ENV/
 
-# state and artifacts
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime state, backups, and local archives
 state/
 *.tar
+*.bak
+*.tmp
 
-# test and coverage
+# Test runners and coverage reports
 .pytest_cache/
 .coverage
 .coverage.*
 coverage.xml
 htmlcov/
 
-# tooling
+# Linters and type checkers
 .ruff_cache/
 .mypy_cache/
 
-# build
+# Build and packaging artifacts
 dist/
 build/
+*.egg
 *.egg-info/
+**/*.egg-info/
 
-# editor
+# Operating system and editor artifacts
+.DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
+*.swo

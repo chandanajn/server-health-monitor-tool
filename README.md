@@ -24,3 +24,10 @@ The parser also handles invalid log entries without stopping the application. Ad
 
 Added unit tests to cover different severity levels, timestamp formats, fault resolution entries, invalid inputs, and boundary cases.
 
+### 4. Checkpoint Store
+Implemented state persistence using an atomic write mechanism. File offsets and active faults are saved together to a temporary file, flushed with fsync, and swapped in place using an atomic replace operation to prevent partial or corrupted writes during unexpected shutdowns.
+
+Added strict schema validation on load to ensure file paths are safe relative paths and fault IDs are consistent. If a state file is found to be malformed or corrupted, it is automatically moved to a timestamped quarantine file rather than crashing the service, allowing monitoring to continue safely with a fresh state.
+
+Added unit tests to verify save and reload roundtrips, unchanged state write avoidance, corrupt file quarantine handling, schema version checks, and path traversal protection.
+
