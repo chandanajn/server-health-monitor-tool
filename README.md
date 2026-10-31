@@ -147,3 +147,9 @@ Container commands:
   ```powershell
   docker run --rm -p 8000:8000 -v "${PWD}\org:/data/org:ro" health-api:local
   ```
+
+### 14. Continuous Integration Pipeline (Lint, Type Check, and Test)
+Created the initial GitHub Actions workflow in `.github/workflows/ci.yml` triggered on pushes to `main`, tags matching `v*`, and pull requests targeting `main`:
+- **Security & Concurrency**: Restricts permissions to read-only (`contents: read`) at the workflow root and uses concurrency cancellation for superseded pull request runs.
+- **Stage 1 (Lint)**: Sets up Python 3.11 with pip package caching, installs dependencies, and runs `ruff check .`, `ruff format --check .`, strict `mypy src tests scripts`, and `pip-audit -r requirements.txt`.
+- **Stage 2 (Test)**: Depends on the lint stage, executes the full pytest suite with branch coverage validation (`--cov-fail-under=80`), and uploads `coverage.xml` as an automated workflow artifact.
