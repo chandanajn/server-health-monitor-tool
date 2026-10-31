@@ -83,3 +83,39 @@ Added end-to-end integration tests to verify the complete operational cycle: inc
 Extended test coverage across edge cases, including Windows CRLF line endings, UTF-8 byte-order marks (BOM), invalid byte sequences, high-volume directory trees with 500 server log files, empty directory monitoring, directory deletion during runtime while retaining unresolved faults, and corrupt checkpoint quarantine recovery at startup.
 
 Configured automated test coverage measurement producing detailed terminal output and `coverage.xml` reports, achieving 90.47% test coverage across the application codebase against the 80% coverage requirement.
+
+### 12. Development Commands and Strict Static Analysis
+Configured strict MyPy type checking for the core application codebase in `pyproject.toml`, disallowing untyped definitions, incomplete definitions, and untyped decorators. Verified code cleanliness with zero Ruff linting issues and zero formatting deviations.
+
+Audited project dependencies using `pip-audit`, confirming zero known security vulnerabilities in both production and development packages.
+
+The primary development commands used across the project:
+
+- **Linting**:
+  ```powershell
+  ruff check .
+  ```
+- **Formatting check**:
+  ```powershell
+  ruff format --check .
+  ```
+- **Code formatting**:
+  ```powershell
+  ruff format .
+  ```
+- **Type checking (strict)**:
+  ```powershell
+  mypy src tests
+  ```
+- **Test execution with coverage**:
+  ```powershell
+  pytest --cov=health_api --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+  ```
+- **Dependency vulnerability audit**:
+  ```powershell
+  pip-audit -r requirements.txt
+  ```
+- **Run service locally**:
+  ```powershell
+  python -m health_api
+  ```

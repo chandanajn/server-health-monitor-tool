@@ -70,3 +70,19 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.
 [tool.ruff.format]
 quote-style = "double"
 
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "health_api.*"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+check_untyped_defs = true
+

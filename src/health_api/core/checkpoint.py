@@ -9,6 +9,7 @@ import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any
 
 from health_api.core.models import Fault, FileCheckpoint, Severity
 
@@ -47,13 +48,13 @@ def _encode(state: dict[str, FileCheckpoint]) -> str:
     return json.dumps(document, sort_keys=True, separators=(",", ":"))
 
 
-def _as_dict(value: object, where: str) -> dict:
+def _as_dict(value: object, where: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise CheckpointError(f"{where} must be an object")
     return value
 
 
-def _exact(mapping: dict, keys: set[str], where: str) -> None:
+def _exact(mapping: dict[str, Any], keys: set[str], where: str) -> None:
     if set(mapping) != keys:
         raise CheckpointError(f"{where} has missing or unexpected keys")
 
