@@ -1,0 +1,40 @@
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test suite and smoke test scripts (not needed in production image)
+tests/
+scripts/
+
+# Local sample data and runtime state (mounted as volumes at runtime)
+org/
+state/
+.env
+.env.*
+
+# Linters, typecheckers, and test coverage artifacts
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build and package metadata
+build/
+dist/
+*.egg-info/
+**/*.egg-info/
+

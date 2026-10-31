@@ -119,3 +119,31 @@ The primary development commands used across the project:
   ```powershell
   python -m health_api
   ```
+
+### 13. Containerization and Automated Smoke Testing
+Created a production-ready, multi-stage `Dockerfile` using `python:3.11-slim`:
+- **Builder stage**: Compiles dependencies into an isolated virtual environment (`/opt/venv`).
+- **Runtime stage**: Runs exclusively as a dedicated non-root user (`appuser`, fixed UID/GID 10001), declares mount targets `/data/org` (monitored logs) and `/data/state` (checkpoint state), and configures container health checks using standard library `urllib`.
+- **Packaging safety**: Configured `.dockerignore` to prevent staging repository history, development tools, test files, and local state into the image.
+
+Implemented a dependency-free container verification script in `scripts/smoke_test.py` covering six core scenarios:
+1. **Scenario A**: Baseline report verification (6 monitored servers, 3 faulty).
+2. **Scenario B**: Write authentication (401/403 without API key, 200 with API key, faulty server count drops to 2).
+3. **Scenario C**: Consistent JSON error envelope for unknown resources (404).
+4. **Scenario D**: Verification that the container process runs as UID 10001.
+5. **Scenario E**: Checkpoint state persistence across container restarts.
+6. **Scenario F**: Fast container termination and non-zero exit on invalid configuration.
+
+Container commands:
+- **Build image**:
+  ```powershell
+  docker build -t health-api:local .
+  ```
+- **Run container smoke test**:
+  ```powershell
+  python scripts/smoke_test.py health-api:local
+  ```
+- **Run container with volume mounts**:
+  ```powershell
+  docker run --rm -p 8000:8000 -v "${PWD}\org:/data/org:ro" health-api:local
+  ```
