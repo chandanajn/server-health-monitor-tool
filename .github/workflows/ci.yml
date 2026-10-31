@@ -204,6 +204,13 @@ jobs:
           trivyignores: ".trivyignore"
           output: "trivy-report.txt"
 
+      - name: Display Trivy scan findings
+        if: always()
+        run: |
+          if [ -f trivy-report.txt ]; then
+            cat trivy-report.txt
+          fi
+
       - name: Upload Trivy scan report
         if: always()
         uses: actions/upload-artifact@v4

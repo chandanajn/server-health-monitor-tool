@@ -121,9 +121,9 @@ The primary development commands used across the project:
   ```
 
 ### 13. Containerization and Automated Smoke Testing
-Created a production-ready, multi-stage `Dockerfile` using `python:3.11-slim`:
-- **Builder stage**: Compiles dependencies into an isolated virtual environment (`/opt/venv`).
-- **Runtime stage**: Runs exclusively as a dedicated non-root user (`appuser`, fixed UID/GID 10001), declares mount targets `/data/org` (monitored logs) and `/data/state` (checkpoint state), and configures container health checks using standard library `urllib`.
+Created a production-ready, multi-stage `Dockerfile` using `python:3.11-slim-bookworm` with security hardening:
+- **Builder stage**: Upgrades packaging tools (`pip`, `setuptools`, `wheel`) and compiles dependencies into an isolated virtual environment (`/opt/venv`).
+- **Runtime stage**: Applies latest Debian security patches (`apt-get upgrade`), runs exclusively as a dedicated non-root user (`appuser`, fixed UID/GID 10001), declares mount targets `/data/org` (monitored logs) and `/data/state` (checkpoint state), and configures container health checks using standard library `urllib`.
 - **Packaging safety**: Configured `.dockerignore` to prevent staging repository history, development tools, test files, and local state into the image.
 
 Implemented a dependency-free container verification script in `scripts/smoke_test.py` covering six core scenarios:

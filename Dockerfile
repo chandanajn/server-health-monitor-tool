@@ -1,11 +1,12 @@
 # Stage 1: Build virtualenv with dependencies and application
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim-bookworm AS builder
 
 WORKDIR /build
 
-# Create isolated virtualenv to hold application and runtime dependencies
+# Create isolated virtualenv and update packaging tooling
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Install pinned dependencies
 COPY requirements.txt ./
@@ -18,7 +19,12 @@ RUN pip install --no-cache-dir --no-deps .
 
 
 # Stage 2: Minimal non-root production runtime
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
+
+# Apply latest OS security updates
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    rm -rf /var/lib/apt/lists/*
 
 # Build arguments for OCI annotations
 ARG VERSION="0.1.0"
