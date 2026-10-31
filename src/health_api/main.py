@@ -5,10 +5,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncIterator
+import time
+import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi import status as http_status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from health_api.api.admin import router as admin_router
 from health_api.api.faults import router as faults_router
@@ -17,7 +21,8 @@ from health_api.api.report import router as report_router
 from health_api.api.servers import router as servers_router
 from health_api.core.checkpoint import CheckpointStore
 from health_api.core.monitor import Monitor
-from health_api.logging_config import configure_logging
+from health_api.errors import make_error_response, register_error_handlers
+from health_api.logging_config import configure_logging, request_id_ctx
 from health_api.service import MonitorService
 from health_api.settings import Settings, get_settings
 
@@ -71,6 +76,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.service = service
     app.state.settings = app_settings
+
+    register_error_handlers(app)
+
+    @app.middleware("http")
+    async def request_id_and_access_log_middleware(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        incoming_id = request.headers.get("X-Request-ID")
+        rid = (
+            incoming_id.strip()
+            if incoming_id and incoming_id.strip()
+            else f"req-{uuid.uuid4().hex[:12]}"
+        )
+
+        token = request_id_ctx.set(rid)
+        request.state.request_id = rid
+
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - start) * 1000.0
+            response.headers["X-Request-ID"] = rid
+            logger.info(
+                "%s %s -> %d (%.2fms)",
+                request.method,
+                request.url.path,
+                response.status_code,
+                duration_ms,
+            )
+            return response
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start) * 1000.0
+            logger.exception(
+                "%s %s -> 500 (%.2fms) unhandled exception [request_id=%s]: %s",
+                request.method,
+                request.url.path,
+                duration_ms,
+                rid,
+                exc,
+            )
+            return make_error_response(
+                "internal_error",
+                "An unexpected internal server error occurred",
+                http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                request_id=rid,
+            )
+        finally:
+            request_id_ctx.reset(token)
+
+    if app_settings.enable_metrics:
+
+        @app.get("/metrics", include_in_schema=False)
+        def metrics() -> Response:
+            return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     app.include_router(health_router)
     app.include_router(report_router, prefix="/api/v1")

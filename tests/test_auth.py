@@ -23,7 +23,9 @@ def test_auth_no_key_configured_writes_disabled(tmp_path: Path) -> None:
         # POST without key configured returns 403 writes_disabled
         post_resp = client.post("/api/v1/scan")
         assert post_resp.status_code == 403
-        assert "writes_disabled" in post_resp.json()["detail"]
+        data = post_resp.json()
+        assert data["error"]["code"] == "writes_disabled"
+        assert "writes_disabled" in data["error"]["message"]
 
 
 def test_auth_missing_or_wrong_api_key(tmp_path: Path) -> None:
@@ -42,7 +44,9 @@ def test_auth_missing_or_wrong_api_key(tmp_path: Path) -> None:
         # Missing key header -> 401
         resp = client.post("/api/v1/scan")
         assert resp.status_code == 401
-        assert "missing API key" in resp.json()["detail"]
+        data1 = resp.json()
+        assert data1["error"]["code"] == "unauthorized"
+        assert "missing API key" in data1["error"]["message"]
 
         # Wrong key header -> 401
         resp = client.post(
@@ -50,7 +54,9 @@ def test_auth_missing_or_wrong_api_key(tmp_path: Path) -> None:
             headers={"X-API-Key": "wrong-secret-key-at-least-16-chars"},
         )
         assert resp.status_code == 401
-        assert "invalid API key" in resp.json()["detail"]
+        data2 = resp.json()
+        assert data2["error"]["code"] == "unauthorized"
+        assert "invalid API key" in data2["error"]["message"]
 
         # Correct key header -> 200
         resp = client.post(
@@ -58,4 +64,3 @@ def test_auth_missing_or_wrong_api_key(tmp_path: Path) -> None:
             headers={"X-API-Key": "correct-secret-key-16-chars"},
         )
         assert resp.status_code == 200
-

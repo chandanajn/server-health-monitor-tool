@@ -68,3 +68,11 @@ Added `POST /api/v1/servers/{env}/{server}/faults/{fault_id}/resolve` to resolve
 
 Added unit tests covering authentication states, manual scans, fault resolution lifecycles, newline handling, double resolution prevention, and path validation safety.
 
+### 10. Error Handling, Request ID, and Metrics
+Added a unified JSON error envelope containing machine-readable error codes, messages, and request identifiers across all HTTP error statuses (400, 401, 403, 404, 405, 409, 422, and 500). Unhandled exceptions log full tracebacks with request IDs and return generic safe messages without leaking internal application details.
+
+Implemented HTTP middleware to accept or generate `X-Request-ID` headers, bind them to context variables for enriched logging, attach them to all responses, and output single-line access logs with method, path, status, and duration in milliseconds.
+
+Added Prometheus metrics collection and a `/metrics` export endpoint supporting gauges for total and faulty servers, scan cycle duration histograms, and counters for scan failures and resolved faults. Metrics export can be toggled via `HM_ENABLE_METRICS`, returning 404 with standard error format when disabled.
+
+Added unit tests covering error response envelopes across all status codes, request ID reuse, unhandled exception masking, Prometheus metrics values, and disabled metrics handling.

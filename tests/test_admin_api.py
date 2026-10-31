@@ -80,7 +80,7 @@ def test_resolve_fault_lifecycle(tmp_path: Path) -> None:
         # Second resolve attempt gives 409 fault_not_active
         resp_409 = client.post(url, headers=AUTH_HEADERS)
         assert resp_409.status_code == 409
-        assert "fault_not_active" in resp_409.json()["detail"]
+        assert resp_409.json()["error"]["code"] == "fault_not_active"
 
 
 def test_resolve_unknown_server_or_fault(tmp_path: Path) -> None:
@@ -155,4 +155,3 @@ def test_resolve_multiple_faults_same_server(tmp_path: Path) -> None:
         content = (work_org / "prd" / "server-6.log").read_text(encoding="utf-8")
         assert "INFO RESOLVED id=F020\n" in content
         assert "INFO RESOLVED id=F021\n" in content
-

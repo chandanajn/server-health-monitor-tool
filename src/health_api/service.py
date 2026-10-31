@@ -13,6 +13,7 @@ from pathlib import Path
 from health_api.core.checkpoint import CheckpointStore
 from health_api.core.models import ScanReport, ServerStatus
 from health_api.core.monitor import Monitor
+from health_api.metrics import record_fault_resolved, record_scan_failure, update_scan_metrics
 from health_api.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -102,9 +103,15 @@ class MonitorService:
                 self._checkpoint_store.save(self._monitor.state)
                 self._last_success_at = report.scanned_at
                 self._consecutive_failures = 0
+                update_scan_metrics(
+                    report.total_servers,
+                    report.faulty_servers,
+                    report.duration_ms / 1000.0,
+                )
                 return report
             except Exception:
                 self._consecutive_failures += 1
+                record_scan_failure()
                 logger.exception("scan cycle failed")
                 raise
 
@@ -133,6 +140,7 @@ class MonitorService:
 
             log_path = self._settings.root / matched.relative_path
             append_resolution(log_path, fault_id)
+            record_fault_resolved()
 
             # Rescan to pick up resolution and update state
             report = self._monitor.scan_once()
@@ -140,6 +148,11 @@ class MonitorService:
             self._checkpoint_store.save(self._monitor.state)
             self._last_success_at = report.scanned_at
             self._consecutive_failures = 0
+            update_scan_metrics(
+                report.total_servers,
+                report.faulty_servers,
+                report.duration_ms / 1000.0,
+            )
 
             for s in report.statuses:
                 if s.relative_path == matched.relative_path:
